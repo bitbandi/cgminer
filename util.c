@@ -2358,6 +2358,22 @@ out:
 	return ret;
 }
 
+bool subscribe_extranonce(struct pool *pool)
+{
+	char s[RBUFSIZE];
+	bool ret = false;
+
+	sprintf(s, "{\"id\": %d, \"method\": \"mining.extranonce.subscribe\", \"params\": []}",
+		swork_id++);
+
+	if (!stratum_send(pool, s, strlen(s)))
+		return ret;
+
+	ret = true;
+	applog(LOG_INFO, "Stratum extranonce subscribe for pool %d", pool->pool_no);
+	return ret;
+}
+
 bool auth_stratum(struct pool *pool)
 {
 	json_t *val = NULL, *res_val, *err_val;
@@ -2977,6 +2993,8 @@ bool restart_stratum(struct pool *pool)
 	if (!initiate_stratum(pool))
 		goto out;
 	if (!auth_stratum(pool))
+		goto out;
+	if (!subscribe_extranonce(pool))
 		goto out;
 	ret = true;
 out:
