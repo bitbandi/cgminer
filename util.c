@@ -2360,7 +2360,9 @@ out:
 
 bool subscribe_extranonce(struct pool *pool)
 {
-	char s[RBUFSIZE];
+	json_t *val = NULL, *res_val, *err_val;
+	char s[RBUFSIZE], *sret = NULL;
+	json_error_t err;
 	bool ret = false;
 
 	sprintf(s, "{\"id\": %d, \"method\": \"mining.extranonce.subscribe\", \"params\": []}",
@@ -2369,8 +2371,54 @@ bool subscribe_extranonce(struct pool *pool)
 	if (!stratum_send(pool, s, strlen(s)))
 		return ret;
 
+	/* Parse all data in the queue and anything left should be auth */
+	while (42) {
+		if (!socket_full(pool, DEFAULT_SOCKWAIT)) {
+			applog(LOG_DEBUG, "Timed out waiting for response extranonce.subscribe");
+			/* some pool doesnt send anything, so this is normal */
+			ret = true;
+			goto out;
+		}
+
+		sret = recv_line(pool);
+		if (!sret)
+			return ret;
+		if (parse_method(pool, sret))
+			free(sret);
+		else
+			break;
+	}
+
+	val = JSON_LOADS(sret, &err);
+	free(sret);
+	res_val = json_object_get(val, "result");
+	err_val = json_object_get(val, "error");
+
+	if (!res_val || json_is_false(res_val) || (err_val && !json_is_null(err_val)))  {
+		char *ss;
+
+		if (err_val) {
+			ss = (char *)json_string_value(json_array_get(err_val, 1));
+			if (opt_extranonce_subscribe && strcmp(ss, "Method 'subscribe' not found for service 'mining.extranonce'") == 0) {
+				applog(LOG_INFO, "Cannot subscribe to mining.extranonce on pool %d", pool->pool_no);
+				ret = true;
+				goto out;
+			}
+			ss = json_dumps(err_val, JSON_INDENT(3));
+		}
+		else
+			ss = strdup("(unknown reason)");
+		applog(LOG_INFO, "pool %d JSON subscribe to mining.extranonce failed: %s", pool->pool_no, ss);
+		free(ss);
+
+		goto out;
+	}
+
 	ret = true;
 	applog(LOG_INFO, "Stratum extranonce subscribe for pool %d", pool->pool_no);
+
+out:
+	json_decref(val);
 	return ret;
 }
 
@@ -2992,9 +3040,9 @@ bool restart_stratum(struct pool *pool)
 		suspend_stratum(pool);
 	if (!initiate_stratum(pool))
 		goto out;
-	if (!auth_stratum(pool))
-		goto out;
 	if (opt_extranonce_subscribe && !subscribe_extranonce(pool))
+		goto out;
+	if (!auth_stratum(pool))
 		goto out;
 	ret = true;
 out:
