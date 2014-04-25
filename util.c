@@ -2136,12 +2136,10 @@ static bool parse_extranonce(struct pool *pool, json_t *val)
 
 	nonce1 = json_array_string(val, 0);
 	if (!nonce1) {
-//		applog(LOG_INFO, "Failed to get nonce1 in ");
 		return false;
 	}
 	n2size = json_integer_value(json_array_get(val, 1));
 	if (!n2size) {
-//		applog(LOG_INFO, "Failed to get n2size in ");
 		free(nonce1);
 		return false;
 	}
@@ -2362,7 +2360,7 @@ bool subscribe_extranonce(struct pool *pool)
 	if (!stratum_send(pool, s, strlen(s)))
 		return ret;
 
-	/* Parse all data in the queue and anything left should be auth */
+	/* Parse all data in the queue and anything left should be the response */
 	while (42) {
 		if (!socket_full(pool, DEFAULT_SOCKWAIT / 30)) {
 			applog(LOG_DEBUG, "Timed out waiting for response extranonce.subscribe");
