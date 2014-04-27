@@ -211,7 +211,6 @@ int opt_api_mcast_port = 4028;
 bool opt_api_network;
 bool opt_delaynet;
 bool opt_disable_pool;
-bool opt_extranonce_subscribe = false;
 static bool no_work;
 #ifdef USE_ICARUS
 char *opt_icarus_options = NULL;
@@ -366,7 +365,7 @@ static struct pool *currentpool = NULL;
 int total_pools, enabled_pools;
 enum pool_strategy pool_strategy = POOL_FAILOVER;
 int opt_rotate_period;
-static int total_urls, total_users, total_passes, total_userpasses;
+static int total_urls, total_users, total_passes, total_userpasses, total_extranonce;
 
 static
 #ifndef HAVE_CURSES
@@ -684,6 +683,7 @@ struct pool *add_pool(void)
 	pool->rpc_proxy = NULL;
 	pool->quota = 1;
 	adjust_quota_gcd();
+	pool->extranonce_subscribe = false;
 
 	return pool;
 }
@@ -956,6 +956,21 @@ static char *set_userpass(const char *arg)
 	pool->rpc_pass = strtok(NULL, ":");
 	if (!pool->rpc_pass)
 		pool->rpc_pass = strdup("");
+
+	return NULL;
+}
+
+static char *set_extranonce_subscribe(char *arg)
+{
+	struct pool *pool;
+
+	total_extranonce++;
+	if (total_extranonce > total_pools)
+		add_pool();
+
+	pool = pools[total_extranonce - 1];
+	applog(LOG_DEBUG, "Enable extranonce subscribe on %d", pool->pool_no);
+	opt_set_bool(&pool->extranonce_subscribe);
 
 	return NULL;
 }
@@ -1308,7 +1323,7 @@ static struct opt_table opt_config_table[] = {
 		     set_int_0_to_9999, opt_show_intval, &opt_expiry,
 		     "Upper bound on how many seconds after getting work we consider a share from it stale"),
 	OPT_WITHOUT_ARG("--extranonce-subscribe",
-			opt_set_bool, &opt_extranonce_subscribe,
+			set_extranonce_subscribe, NULL,
 			"Enable 'extranonce' stratum subscribe"),
 	OPT_WITHOUT_ARG("--failover-only",
 			opt_set_bool, &opt_fail_only,
@@ -5033,6 +5048,8 @@ void write_config(FILE *fcfg)
 				pool->rpc_proxy ? "|" : "",
 				json_escape(pool->rpc_url));
 		}
+		if (pool->extranonce_subscribe)
+			fprintf(fcfg, "\n\t\t\"extranonce-subscribe\" : true,");
 		fprintf(fcfg, "\n\t\t\"user\" : \"%s\",", json_escape(pool->rpc_user));
 		fprintf(fcfg, "\n\t\t\"pass\" : \"%s\"\n\t}", json_escape(pool->rpc_pass));
 		}
@@ -6575,7 +6592,7 @@ retry_stratum:
 		bool init = pool_tset(pool, &pool->stratum_init);
 
 		if (!init) {
-			bool ret = initiate_stratum(pool) && (!opt_extranonce_subscribe || subscribe_extranonce(pool)) && auth_stratum(pool);
+			bool ret = initiate_stratum(pool) && (!pool->extranonce_subscribe || subscribe_extranonce(pool)) && auth_stratum(pool);
 
 			if (ret)
 				init_stratum_threads(pool);

@@ -3036,7 +3036,7 @@ bool restart_stratum(struct pool *pool)
 		suspend_stratum(pool);
 	if (!initiate_stratum(pool))
 		goto out;
-	if (opt_extranonce_subscribe && !subscribe_extranonce(pool))
+	if (pool->extranonce_subscribe && !subscribe_extranonce(pool))
 		goto out;
 	if (!auth_stratum(pool))
 		goto out;
