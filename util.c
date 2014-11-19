@@ -1620,6 +1620,20 @@ double tdiff(struct timeval *end, struct timeval *start)
 	return end->tv_sec - start->tv_sec + (end->tv_usec - start->tv_usec) / 1000000.0;
 }
 
+void check_extranonce_option(struct pool *pool, char * url)
+{
+	char *extra_op_loc = strstr(url, "#");
+	if(extra_op_loc && !pool->extranonce_subscribe)
+	{
+		if(!strcmp(extra_op_loc, "#xnsub"))
+		{
+			pool->extranonce_subscribe = true;
+			applog(LOG_DEBUG, "Enable extranonce subscribe on %d", pool->pool_no);
+		}
+		*extra_op_loc = '\0';
+	}
+}
+
 bool extract_sockaddr(char *url, char **sockaddr_url, char **sockaddr_port)
 {
 	char *url_begin, *url_end, *ipv6_begin, *ipv6_end, *port_start = NULL;

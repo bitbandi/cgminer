@@ -825,6 +825,7 @@ static char *set_rr(enum pool_strategy *strategy)
  * stratum+tcp or by detecting a stratum server response */
 bool detect_stratum(struct pool *pool, char *url)
 {
+	check_extranonce_option(pool, url);
 	if (!extract_sockaddr(url, &pool->sockaddr_url, &pool->stratum_port))
 		return false;
 
